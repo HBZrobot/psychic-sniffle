@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今天中午吃啥</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 30px 16px;
+  }
+  .app {
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.15);
+    padding: 24px;
+  }
+  h1 {
+    font-size: 22px;
+    text-align: center;
+    color: #333;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 18px;
+  }
+  .result-box {
+    background: linear-gradient(135deg, #ff9a56, #ff6a88);
+    border-radius: 16px;
+    padding: 34px 16px;
+    text-align: center;
+    margin-bottom: 18px;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #result {
+    font-size: 30px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,.2);
+    word-break: break-all;
+    line-height: 1.3;
+  }
+  #result.rolling { font-size: 26px; opacity: .85; }
+  .btns { display: flex; gap: 10px; margin-bottom: 18px; }
+  button {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .1s, opacity .2s;
+  }
+  button:active { transform: scale(.97); }
+  .btn-main { background: #ff6a88; color: #fff; }
+  .btn-main:disabled { opacity: .6; cursor: not-allowed; }
+  .btn-sub { background: #f2f2f2; color: #555; }
+
+  .section-title {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .chip {
+    padding: 7px 14px;
+    border-radius: 20px;
+    background: #f2f2f2;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    border: 2px solid transparent;
+    transition: all .15s;
+  }
+  .chip.active { background: #ffe3e8; color: #ff6a88; border-color: #ff6a88; }
+
+  .food-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .food-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: #444;
+  }
+  .food-item .del {
+    color: #bbb;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 2px;
+  }
+  .food-item .del:hover { color: #ff4d4f; }
+
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+  }
+  .add-row input:focus { border-color: #ff6a88; }
+  .add-row button {
+    flex: none;
+    width: 70px;
+    padding: 12px;
+    background: #ff6a88;
+    color: #fff;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🍜 今天中午吃啥</h1>
+  <div class="subtitle">选择困难症终结者</div>
+
+  <div class="result-box">
+    <div id="result">点击下方按钮开始</div>
+  </div>
+
+  <div class="btns">
+    <button class="btn-main" id="pickBtn">随机选一个</button>
+    <button class="btn-sub" id="resetBtn">恢复默认</button>
+  </div>
+
+  <div class="section-title">按类型筛选（可多选，不选=全部）</div>
+  <div class="filters" id="filters"></div>
+
+  <div class="section-title">我的菜单 <span id="count" style="color:#ff6a88"></span></div>
+  <div class="food-list" id="foodList"></div>
+
+  <div class="add-row">
+    <input id="foodInput" type="text" placeholder="输入想吃的菜，如：黄焖鸡" maxlength="20">
+    <button id="addBtn">添加</button>
+  </div>
+</div>
+
+<script>
+// ====== 初始数据（带分类，方便筛选）======
+const DEFAULT_FOODS = [
+  { name: "黄焖鸡米饭", cat: "米饭" },
+  { name: "麻辣烫", cat: "麻辣" },
+  { name: "兰州拉面", cat: "面食" },
+  { name: "沙县小吃", cat: "小吃" },
+  { name: "煲仔饭", cat: "米饭" },
+  { name: "麦当劳", cat: "快餐" },
+  { name: "肯德基", cat: "快餐" },
+  { name: "螺蛳粉", cat: "粉面" },
+  { name: "酸菜鱼", cat: "米饭" },
+  { name: "煎饼果子", cat: "小吃" },
+  { name: "重庆小面", cat: "面食" },
+  { name: "寿司", cat: "日料" },
+  { name: "炒饭", cat: "米饭" },
+  { name: "水饺", cat: "面食" },
+  { name: "火锅冒菜", cat: "麻辣" },
+  { name: "盖浇饭", cat: "米饭" },
+  { name: "汉堡", cat: "快餐" },
+  { name: "米线", cat: "粉面" },
+  { name: "肉夹馍", cat: "小吃" },
+  { name: "日式拉面", cat: "日料" }
+];
+
+const STORAGE_KEY = "lunch_picker_foods";
+const FILTER_KEY = "lunch_picker_filters";
+
+let foods = loadFoods();
+let activeCats = loadFilters();
+
+// ====== 存储读写 ======
+function loadFoods() {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    return s ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT_FOODS));
+  } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_FOODS)); }
+}
+function saveFoods() { localStorage.setItem(STORAGE_KEY, JSON.stringify(foods)); }
+function loadFilters() {
+  try { return JSON.parse(localStorage.getItem(FILTER_KEY)) || []; } catch(e) { return []; }
+}
+function saveFilters() { localStorage.setItem(FILTER_KEY, JSON.stringify(activeCats)); }
+
+// ====== 渲染分类筛选 ======
+function renderFilters() {
+  const cats = [...new Set(foods.map(f => f.cat))];
+  const box = document.getElementById("filters");
+  box.innerHTML = "";
+  cats.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "chip" + (activeCats.includes(c) ? " active" : "");
+    el.textContent = c;
+    el.onclick = () => {
+      if (activeCats.includes(c)) activeCats = activeCats.filter(x => x !== c);
+      else activeCats.push(c);
+      saveFilters();
+      renderFilters();
+    };
+    box.appendChild(el);
+  });
+}
+
+// ====== 渲染菜单列表 ======
+function renderList() {
+  const box = document.getElementById("foodList");
+  box.innerHTML = "";
+  foods.forEach((f, i) => {
+    const item = document.createElement("div");
+    item.className = "food-item";
+    item.innerHTML = `<span>${f.name}</span><span class="del" data-i="${i}">×</span>`;
+    box.appendChild(item);
+  });
+  box.querySelectorAll(".del").forEach(el => {
+    el.onclick = () => {
+      foods.splice(+el.dataset.i, 1);
+      saveFoods(); renderList(); renderFilters(); updateCount();
+    };
+  });
+  updateCount();
+}
+function updateCount() {
+  document.getElementById("count").textContent = `共 ${foods.length} 项`;
+}
+
+// ====== 随机抽取 ======
+function getCandidates() {
+  return activeCats.length === 0
+    ? foods
+    : foods.filter(f => activeCats.includes(f.cat));
+}
+
+let rolling = false;
+function pick() {
+  if (rolling) return;
+  const candidates = getCandidates();
+  if (candidates.length === 0) {
+    document.getElementById("result").textContent = "没有符合条件的菜，去添加或取消筛选吧～";
+    return;
+  }
+  rolling = true;
+  const btn = document.getElementById("pickBtn");
+  const resultEl = document.getElementById("result");
+  btn.disabled = true;
+  resultEl.classList.add("rolling");
+
+  let ticks = 0;
+  const totalTicks = 18;
+  const timer = setInterval(() => {
+    const random = candidates[Math.floor(Math.random() * candidates.length)];
+    resultEl.textContent = random.name;
+    ticks++;
+    if (ticks >= totalTicks) {
+      clearInterval(timer);
+      const finalPick = candidates[Math.floor(Math.random() * candidates.length)];
+      resultEl.textContent = finalPick.name;
+      resultEl.classList.remove("rolling");
+      rolling = false;
+      btn.disabled = false;
+    }
+  }, 60 + ticks * 6); // 逐渐变慢，有仪式感
+}
+
+// ====== 添加菜品 ======
+function addFood() {
+  const input = document.getElementById("foodInput");
+  const name = input.value.trim();
+  if (!name) return;
+  // 分类简单处理：默认归到"其他"，可以后续改
+  const cat = "其他";
+  foods.push({ name, cat });
+  input.value = "";
+  saveFoods(); renderList(); renderFilters();
+}
+
+// ====== 恢复默认 ======
+function resetAll() {
+  if (!confirm("确定恢复默认菜单吗？你添加的菜会清空。")) return;
+  foods = JSON.parse(JSON.stringify(DEFAULT_FOODS));
+  activeCats = [];
+  saveFoods(); saveFilters();
+  renderList(); renderFilters();
+  document.getElementById("result").textContent = "点击下方按钮开始";
+}
+
+// ====== 绑定事件 ======
+document.getElementById("pickBtn").onclick = pick;
+document.getElementById("addBtn").onclick = addFood;
+document.getElementById("resetBtn").onclick = resetAll;
+document.getElementById("foodInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") addFood();
+});
+
+// ====== 初始化 ======
+renderFilters();
+renderList();
+</script>
+</body>
+</html>
